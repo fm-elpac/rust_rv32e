@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - run: git clone https://github.com/Noxime/rust --branch rv32e --single-branch --depth=1
+    # install build dep
+    - run: sudo apt-get update
+    - run: sudo apt-get -y install ninja-build
+
+    - run: cd rust && git submodule update --init --recursive --depth=1
+    # replace llvm-project
+    - run: git clone https://github.com/Noxime/llvm-project --branch rv32e --single-branch --depth=1
+    - run: rm -rf rust/src/llvm-project && mv llvm-project rust/src
+
+    # build
+    - run: cp config.toml rust/
+    - run: cd rust && python x.py build --stage 2
+
+    # show build result
+    - run: ls -l rust/build/host
+    #- run: find rust/build/x86_64-unknown-linux-gnu
+
+    # upload result
+    - run: tar -cvf build-llvm.tar.zstd --zstd rust/build/x86_64-unknown-linux-gnu/llvm/include rust/build/x86_64-unknown-linux-gnu/llvm/lib rust/build/x86_64-unknown-linux-gnu/llvm/bin
+    - run: tar -cvf build-stage1.tar.zstd --zstd rust/build/x86_64-unknown-linux-gnu/stage1
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: build-llvm
+        path: build-llvm.tar.zstd
+    - uses: actions/upload-artifact@v3
+      with:
+        name: build-stage1
+        path: build-stage1.tar.zstd
+
+# TODO
